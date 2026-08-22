@@ -1,6 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
+import * as Sentry from "@sentry/nextjs";
 
 import {
   sendInterestConfirmation,
@@ -48,7 +49,7 @@ async function verifyTurnstile(token: string): Promise<boolean> {
       .filter(Boolean)
   );
   if (expectedHostnames.size === 0) {
-    console.warn("TURNSTILE_HOSTNAMES is not configured");
+    Sentry.logger.warn("turnstile.missing_hostnames");
     return false;
   }
 
@@ -69,7 +70,7 @@ async function verifyTurnstile(token: string): Promise<boolean> {
     if (!res.ok) return false;
     result = (await res.json()) as typeof result;
   } catch (error) {
-    console.error("Turnstile siteverify failed", error);
+    Sentry.captureException(error);
     return false;
   }
 
@@ -142,6 +143,9 @@ export async function submitInterest(
     formData.get("cf-turnstile-response") ?? ""
   ).trim();
   if (!(await verifyTurnstile(turnstileToken))) {
+    Sentry.logger.warn("interest.captcha_failed", {
+      hasToken: !!turnstileToken,
+    });
     return { error: "captcha_failed" };
   }
 
@@ -162,7 +166,7 @@ export async function submitInterest(
       },
     });
   } catch (error) {
-    console.error("Failed to save interest submission", error);
+    Sentry.captureException(error);
     return { error: "generic" };
   }
 
@@ -184,9 +188,9 @@ export async function submitInterest(
     sendInterestNotification(emailData),
   ]);
 
-  for (const [index, result] of results.entries()) {
+  for (const [, result] of results.entries()) {
     if (result.status === "rejected") {
-      console.error(`Interest form email ${index} failed`, result.reason);
+      Sentry.captureException(result.reason);
     }
   }
 

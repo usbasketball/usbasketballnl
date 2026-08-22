@@ -160,7 +160,6 @@ export function InterestForm() {
 
   return (
     <form
-      action={formAction}
       onChange={handleChange}
       onSubmit={handleSubmit}
       className="space-y-5"
